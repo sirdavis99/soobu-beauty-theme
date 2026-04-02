@@ -1,0 +1,74 @@
+name: Deploy Theme
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    name: Validate Theme
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check required directories
+        run: |
+          for dir in assets views theme_json default_data; do
+            [ -d "$dir" ] || { echo "Missing $dir/"; exit 1; }
+          done
+
+      - name: Validate JSON files
+        run: |
+          find theme_json -name "*.json" -type f -exec python3 -m json.tool {} \; > /dev/null
+
+      - name: Validate PHP syntax
+        run: |
+          find . -name "*.php" -type f -exec php -l {} \; > /dev/null 2>&1 || true
+
+  build:
+    needs: validate
+    runs-on: ubuntu-latest
+    name: Create Release Asset
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create ZIP archive
+        run: |
+          zip -r beauty-theme-${{ github.ref_name }}.zip assets/ views/ theme_json/ default_data/ verification.php
+
+      - name: Upload Release Asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: theme-asset
+          path: beauty-theme-*.zip
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    name: Deploy to Server
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: theme-asset
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+          script: |
+            mkdir -p /var/www/soobu-themes
+            unzip -o beauty-theme-*.zip -d /var/www/soobu-themes/beauty/
+            echo "Theme deployed successfully"

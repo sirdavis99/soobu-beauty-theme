@@ -12,8 +12,8 @@ A beautiful, modern e-commerce theme designed for the Soobu platform. This theme
 
 ## Installation
 
-1. Download or clone this repository
-2. Upload to your Soobu themes directory
+1. Download or clone this repository to your Soobu themes folder
+2. The theme will appear as "Beauty" in the theme selection
 3. Activate through the theme customization panel
 
 ## Theme Structure

@@ -1,0 +1,155 @@
+name: Theme Validation
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate-structure:
+    runs-on: ubuntu-latest
+    name: Validate Theme Structure
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check required directories
+        run: |
+          echo "Checking theme structure..."
+          
+          # Check required directories
+          for dir in assets views theme_json default_data; do
+            if [ -d "$dir" ]; then
+              echo "✓ $dir/ exists"
+            else
+              echo "✗ $dir/ missing"
+              exit 1
+            fi
+          done
+
+      - name: Check required files
+        run: |
+          echo "Checking required files..."
+          
+          # Check required files
+          for file in verification.php README.md; do
+            if [ -f "$file" ]; then
+              echo "✓ $file exists"
+            else
+              echo "✗ $file missing"
+              exit 1
+            fi
+          done
+
+      - name: Validate JSON files
+        run: |
+          echo "Validating JSON files..."
+          
+          # Find and validate all JSON files
+          find theme_json -name "*.json" -type f | while read file; do
+            if python3 -m json.tool "$file" > /dev/null 2>&1; then
+              echo "✓ $file is valid JSON"
+            else
+              echo "✗ $file has invalid JSON"
+              exit 1
+            fi
+          done
+
+      - name: Validate Blade templates
+        run: |
+          echo "Checking Blade templates..."
+          
+          # Count Blade files
+          blade_count=$(find views -name "*.blade.php" | wc -l)
+          echo "Found $blade_count Blade templates"
+          
+          if [ $blade_count -eq 0 ]; then
+            echo "✗ No Blade templates found"
+            exit 1
+          fi
+
+      - name: Validate settings.php
+        run: |
+          echo "Validating default settings..."
+          
+          # Check if settings.php returns an array
+          php -r " \$settings = include 'default_data/settings.php'; if (!is_array(\$settings)) { exit(1); } echo '✓ settings.php is valid'; "
+
+      - name: Check assets
+        run: |
+          echo "Checking theme assets..."
+          
+          # Check for CSS files
+          css_count=$(find assets/css -name "*.css" 2>/dev/null | wc -l)
+          echo "Found $css_count CSS files"
+          
+          # Check for JS files
+          js_count=$(find assets/js -name "*.js" 2>/dev/null | wc -l)
+          echo "Found $js_count JS files"
+          
+          # Check for images
+          img_count=$(find assets/images -type f 2>/dev/null | wc -l)
+          echo "Found $img_count image files"
+
+      - name: Generate validation report
+        run: |
+          echo "Theme validation complete!"
+          echo ""
+          echo "Summary:"
+          echo "- Assets: $(find assets -type f | wc -l) files"
+          echo "- Views: $(find views -name '*.blade.php' | wc -l) templates"
+          echo "- Theme JSON: $(find theme_json -name '*.json' | wc -l) configuration files"
+          echo "- Default settings: $(wc -l < default_data/settings.php) lines"
+
+  lint-blade:
+    runs-on: ubuntu-latest
+    name: Lint Blade Templates
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for syntax errors in PHP includes
+        run: |
+          echo "Checking PHP syntax in theme files..."
+          
+          # Find all PHP files
+          find . -name "*.php" -type f | while read file; do
+            if php -l "$file" > /dev/null 2>&1; then
+              echo "✓ $file"
+            else
+              echo "✗ $file has syntax errors"
+              exit 1
+            fi
+          done
+
+  check-readme:
+    runs-on: ubuntu-latest
+    name: Check Documentation
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify README exists and has content
+        run: |
+          if [ -f "README.md" ]; then
+            lines=$(wc -l < README.md)
+            if [ $lines -gt 10 ]; then
+              echo "✓ README.md exists and has content ($lines lines)"
+            else
+              echo "✗ README.md is too short"
+              exit 1
+            fi
+          else
+            echo "✗ README.md missing"
+            exit 1
+          fi
